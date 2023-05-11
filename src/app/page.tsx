@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react";
+import useMsgStore from "@/store/messages";
 
 function Home() {
   const [loading, setLoading] = useState(false)
@@ -8,9 +9,16 @@ function Home() {
   const [ans, setAns] = useState("")
   const scrollRef = useRef<HTMLParagraphElement>(null)
 
+  const messages = useMsgStore(s => s.messages)
+  const addMsg = useMsgStore(s => s.addMsg)
+
   async function get() {
+    if (!message) return;
+
     setMsg("")
     setLoading(true)
+    addMsg(message, "question")
+
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -22,7 +30,9 @@ function Home() {
 
     reader?.read().then(function processResult(result: any): any {
       if (result.done) {
+        addMsg(buffer, "answer")
         setLoading(false)
+        setAns("")
         return;
       }
 
@@ -36,10 +46,26 @@ function Home() {
 
   return (
     <div className="p-8 h-screen grid grid-rows-[1fr_auto] gap-4 max-w-5xl mx-auto">
-      <div className="h-full p-2 overflow-y-auto border">
-        <pre className="break-words prose whitespace-pre-line">
-          {ans}
-        </pre>
+      <div className="h-full p-4 overflow-y-auto border">
+        {
+          messages.map(m => (
+            <pre
+              key={m.id}
+              className={`break-words whitespace-pre-line text-gray-700 ${m.type === "answer" ? "pb-6 border-b" : "pt-4"}`}
+            >
+              <span className="text-lg font-medium text-black">{m.type === "answer" ? "Ans: " : "Que: "}</span>
+              {m.content}
+            </pre>
+          ))
+        }
+
+        {
+          (ans || loading) &&
+          <pre className="break-words whitespace-pre-line text-gray-700">
+            <span className="text-lg font-medium text-black">Ans: </span>
+            {loading && !ans && "loading..."}{ans}
+          </pre>
+        }
 
         <p ref={scrollRef}></p>
       </div>
@@ -48,8 +74,13 @@ function Home() {
         <textarea
           value={message}
           onChange={e => setMsg(e.target.value)}
-          className="w-full max-h-20 p-2 border focus-within:outline-none disabled:opacity-60"
+          className="w-full max-h-28 p-2 border focus-within:outline-none disabled:opacity-60"
           disabled={loading}
+          onKeyDown={e => {
+            if (e.code === "Enter") {
+              get()
+            }
+          }}
         ></textarea>
 
         <button
